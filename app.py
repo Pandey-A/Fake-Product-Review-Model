@@ -4,6 +4,8 @@ import pickle
 import os
 from flask import Flask, request, render_template
 from nltk.corpus import stopwords
+import sys      # <-- ADD THIS LINE
+import __main__ # <-- ADD THIS LINE
 
 # --- REQUIRED: Your Text Processing Function ---
 # This *must* be defined so pickle can load the models
@@ -13,7 +15,6 @@ def convertmyTxt(rv):
     return [w for w in np_joined.split() if w.lower() not in stopwords.words('english')]
 
 # --- Point NLTK to local 'nltk_data' folder ---
-# (This is the best-practice method for deployment)
 project_root = os.path.dirname(__file__)
 nltk_data_path = os.path.join(project_root, 'nltk_data')
 if nltk_data_path not in nltk.data.path:
@@ -29,6 +30,13 @@ except LookupError:
 
 # --- Initialize the Flask App ---
 app = Flask(__name__)
+
+# --- MAIN MODULE PATCH ---  <-- ADD THIS LINE
+# This is a workaround for Gunicorn. Your models were saved expecting
+# 'convertmyTxt' to be in the '__main__' module. This patch manually
+# adds our function to the __main__ module so pickle.load() can find it.
+setattr(sys.modules['__main__'], 'convertmyTxt', convertmyTxt)
+# --- END PATCH ---
 
 # --- Load All Trained Models ---
 models = {} # Dictionary to hold our models
@@ -46,7 +54,7 @@ for model_key, file_name in model_files.items():
     except FileNotFoundError:
         print(f"Error: {file_name} file not found.")
     except Exception as e:
-        print(f"Error loading {file_name}: {e}")
+        print(f"Error loading {file_name}: {e}") # This error will now be gone
 
 
 # --- Define Routes ---
